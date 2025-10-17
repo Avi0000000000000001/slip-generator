@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Address Slip Generator</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            max-width: 800px;
+            width: 100%;
+            padding: 40px;
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+            text-align: center;
+        }
+        
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            text-align: center;
+            font-size: 14px;
+        }
+        
+        .upload-area {
+            border: 3px dashed #667eea;
+            border-radius: 15px;
+            padding: 40px;
+            text-align: center;
+            margin-bottom: 20px;
+            background: #f8f9ff;
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+        
+        .upload-area:hover {
+            background: #f0f2ff;
+            border-color: #764ba2;
+        }
+        
+        .upload-area.dragover {
+            background: #e8ebff;
+            border-color: #764ba2;
+        }
+        
+        .upload-icon {
+            font-size: 48px;
+            margin-bottom: 15px;
+        }
+        
+        input[type="file"] {
+            display: none;
+        }
+        
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            border-radius: 50px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            margin-top: 15px;
+            width: 100%;
+        }
+        
+        .btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        
+        #status {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 10px;
+            font-size: 14px;
+            display: none;
+        }
+        
+        #status.loading {
+            background: #fff3cd;
+            color: #856404;
+            display: block;
+        }
+        
+        #status.success {
+            background: #d4edda;
+            color: #155724;
+            display: block;
+        }
+        
+        #status.error {
+            background: #f8d7da;
+            color: #721c24;
+            display: block;
+        }
+        
+        .file-info {
+            background: #f8f9ff;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 15px;
+            display: none;
+        }
+        
+        .file-info.show {
+            display: block;
+        }
+        
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+            display: none;
+        }
+        
+        .spinner.show {
+            display: block;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .instructions {
+            background: #f8f9ff;
+            padding: 20px;
+            border-radius: 10px;
+            margin-top: 30px;
+            border-left: 4px solid #667eea;
+        }
+        
+        .instructions h3 {
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+        
+        .instructions ul {
+            margin-left: 20px;
+            color: #555;
+        }
+        
+        .instructions li {
+            margin: 8px 0;
+        }
+
+        .progress {
+            background: #f3f4f6;
+            border-radius: 10px;
+            height: 30px;
+            margin-top: 15px;
+            overflow: hidden;
+            display: none;
+        }
+
+        .progress.show {
+            display: block;
+        }
+
+        .progress-bar {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            height: 100%;
+            width: 0%;
+            transition: width 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📄 Address Slip Generator</h1>
+        <p class="subtitle">100% Browser-Based - No Installation Required!</p>
+        
+        <div class="upload-area" id="uploadArea">
+            <div class="upload-icon">📤</div>
+            <h3>Click or drag Excel file here</h3>
+            <p style="color: #666; margin-top: 10px;">Supports .xlsx files</p>
+            <input type="file" id="fileInput" accept=".xlsx,.xls">
+        </div>
+        
+        <div class="file-info" id="fileInfo">
+            <strong>Selected file:</strong> <span id="fileName"></span><br>
+            <strong>Records found:</strong> <span id="recordCount">0</span>
+        </div>
+        
+        <button class="btn" id="generateBtn" disabled>Generate PDF Slips</button>
+        
+        <div class="progress" id="progress">
+            <div class="progress-bar" id="progressBar">0%</div>
+        </div>
+        
+        <div class="spinner" id="spinner"></div>
+        <div id="status"></div>
+        
+        <div class="instructions">
+            <h3>Required Excel Columns:</h3>
+            <ul>
+                <li><strong>order_id</strong> - Order identification number</li>
+                <li><strong>name</strong> - Recipient name</li>
+                <li><strong>address</strong> - Street address</li>
+                <li><strong>city</strong> - City name</li>
+                <li><strong>state</strong> - State name</li>
+                <li><strong>pincode</strong> - Postal code</li>
+                <li><strong>mobile</strong> - Mobile number</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        const { jsPDF } = window.jspdf;
+        let excelData = null;
+        
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        const generateBtn = document.getElementById('generateBtn');
+        const status = document.getElementById('status');
+        const spinner = document.getElementById('spinner');
+        const fileInfo = document.getElementById('fileInfo');
+        const fileName = document.getElementById('fileName');
+        const recordCount = document.getElementById('recordCount');
+        const progress = document.getElementById('progress');
+        const progressBar = document.getElementById('progressBar');
+        
+        // File upload handlers
+        uploadArea.addEventListener('click', () => fileInput.click());
+        
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+        
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+        
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            const file = e.dataTransfer.files[0];
+            if (file) handleFile(file);
+        });
+        
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) handleFile(file);
+        });
+        
+        function handleFile(file) {
+            if (!file.name.match(/\.(xlsx|xls)$/)) {
+                showStatus('Please select an Excel file (.xlsx or .xls)', 'error');
+                return;
+            }
+            
+            showStatus('Reading Excel file...', 'loading');
+            
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                    const jsonData = XLSX.utils.sheet_to_json(firstSheet);
+                    
+                    // Normalize column names
+                    excelData = jsonData.map(row => {
+                        const normalized = {};
+                        for (let key in row) {
+                            normalized[key.trim().toLowerCase()] = row[key];
+                        }
+                        return normalized;
+                    });
+                    
+                    // Validate columns
+                    const required = ['order_id', 'name', 'address', 'city', 'state', 'pincode', 'mobile'];
+                    const missing = required.filter(col => !excelData[0] || !(col in excelData[0]));
+                    
+                    if (missing.length > 0) {
+                        showStatus(`Missing columns: ${missing.join(', ')}`, 'error');
+                        generateBtn.disabled = true;
+                        return;
+                    }
+                    
+                    generateBtn.disabled = false;
+                    fileInfo.classList.add('show');
+                    fileName.textContent = file.name;
+                    recordCount.textContent = excelData.length;
+                    showStatus(`✅ File loaded successfully! Found ${excelData.length} records.`, 'success');
+                    
+                } catch (error) {
+                    showStatus('Error reading Excel file: ' + error.message, 'error');
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+        
+        // Generate PDF
+        generateBtn.addEventListener('click', async () => {
+            if (!excelData) return;
+            
+            showStatus('Generating PDF slips...', 'loading');
+            spinner.classList.add('show');
+            progress.classList.add('show');
+            generateBtn.disabled = true;
+            
+            try {
+                await generateSlipsPDF(excelData);
+                showStatus('✅ PDF generated successfully! Download started.', 'success');
+            } catch (error) {
+                showStatus('Error: ' + error.message, 'error');
+            } finally {
+                spinner.classList.remove('show');
+                progress.classList.remove('show');
+                progressBar.style.width = '0%';
+                generateBtn.disabled = false;
+            }
+        });
+        
+        function toStrSafe(value) {
+            if (value === null || value === undefined) return '';
+            if (typeof value === 'number') {
+                return Number.isInteger(value) ? value.toString() : value.toString();
+            }
+            return value.toString().trim();
+        }
+        
+        async function generateSlipsPDF(records) {
+            const pdf = new jsPDF({
+                orientation: 'portrait',
+                unit: 'mm',
+                format: 'a4'
+            });
+            
+            const PAGE_WIDTH = 210;
+            const PAGE_HEIGHT = 297;
+            const MARGIN = 10;
+            const GAP = 6;
+            const LABEL_COLS = 2;
+            const LABEL_ROWS = 3;
+            const LABELS_PER_PAGE = LABEL_COLS * LABEL_ROWS;
+            
+            const usableWidth = PAGE_WIDTH - 2 * MARGIN - (LABEL_COLS - 1) * GAP;
+            const usableHeight = PAGE_HEIGHT - 2 * MARGIN - (LABEL_ROWS - 1) * GAP;
+            const LABEL_W = usableWidth / LABEL_COLS;
+            const LABEL_H = usableHeight / LABEL_ROWS;
+            
+            const FROM_LINES = [
+                "Gita Press, Gorakhpur-273005",
+                "UTTAR PRADESH",
+                "8188054403",
+                "Website:- www.gitapress.org"
+            ];
+            
+            const positions = [];
+            for (let r = 0; r < LABEL_ROWS; r++) {
+                for (let c = 0; c < LABEL_COLS; c++) {
+                    const x = MARGIN + c * (LABEL_W + GAP);
+                    const y = MARGIN + r * (LABEL_H + GAP);
+                    positions.push({ x, y });
+                }
+            }
+            
+            function drawLabel(pdf, x, y, record) {
+                // Draw border
+                pdf.setLineWidth(0.3);
+                pdf.rect(x, y, LABEL_W, LABEL_H);
+                
+                const innerX = x + 3;
+                const innerW = LABEL_W - 6;
+                let currentY = y + 8;
+                
+                // Order ID
+                const orderId = toStrSafe(record.order_id);
+                pdf.setFont('helvetica', 'bold');
+                pdf.setFontSize(14);
+                const orderText = `ORDER ID - ${orderId}`;
+                const orderWidth = pdf.getTextWidth(orderText);
+                pdf.text(orderText, x + LABEL_W / 2 - orderWidth / 2, currentY);
+                currentY += 7;
+                
+                // First separator line
+                pdf.setLineWidth(0.2);
+                pdf.line(innerX, currentY, innerX + innerW, currentY);
+                currentY += 5;
+                
+                // To label
+                pdf.setFont('helvetica', 'bold');
+                pdf.setFontSize(10);
+                pdf.text('To,', innerX, currentY);
+                currentY += 5;
+                
+                // Recipient details
+                pdf.setFont('helvetica', 'bold');
+                pdf.setFontSize(11);
+                const name = toStrSafe(record.name);
+                if (name) {
+                    const lines = pdf.splitTextToSize(name, innerW - 2);
+                    pdf.text(lines, innerX + 2, currentY);
+                    currentY += lines.length * 5;
+                }
+                
+                pdf.setFont('helvetica', 'normal');
+                pdf.setFontSize(9);
+                
+                const address = toStrSafe(record.address);
+                if (address) {
+                    const lines = pdf.splitTextToSize(address, innerW - 2);
+                    pdf.text(lines, innerX + 2, currentY);
+                    currentY += lines.length * 4;
+                }
+                
+                const city = toStrSafe(record.city);
+                const pincode = toStrSafe(record.pincode);
+                const cityLine = [city, pincode].filter(x => x).join(' ');
+                if (cityLine) {
+                    pdf.text(cityLine, innerX + 2, currentY);
+                    currentY += 4;
+                }
+                
+                const state = toStrSafe(record.state);
+                if (state) {
+                    pdf.text(state, innerX + 2, currentY);
+                    currentY += 4;
+                }
+                
+                const mobile = toStrSafe(record.mobile);
+                if (mobile) {
+                    pdf.setFont('helvetica', 'bold');
+                    pdf.text(`MOB- ${mobile}`, innerX + 2, currentY);
+                    currentY += 5;
+                }
+                
+                // Second separator line
+                const secondLineY = y + LABEL_H - 23;
+                pdf.setLineWidth(0.2);
+                pdf.line(innerX, secondLineY, innerX + innerW, secondLineY);
+                
+                // From section
+                let fromY = secondLineY + 4;
+                pdf.setFont('helvetica', 'bold');
+                pdf.setFontSize(8);
+                pdf.text('From –', innerX, fromY);
+                
+                pdf.setFont('helvetica', 'normal');
+                pdf.setFontSize(7);
+                FROM_LINES.forEach((line, idx) => {
+                    pdf.text(line, innerX + 15, fromY + (idx * 3.5));
+                });
+            }
+            
+            const totalRecords = records.length;
+            for (let i = 0; i < totalRecords; i++) {
+                const slot = i % LABELS_PER_PAGE;
+                
+                if (slot === 0 && i > 0) {
+                    pdf.addPage();
+                }
+                
+                const pos = positions[slot];
+                drawLabel(pdf, pos.x, pos.y, records[i]);
+                
+                // Update progress
+                const progressPercent = Math.round(((i + 1) / totalRecords) * 100);
+                progressBar.style.width = progressPercent + '%';
+                progressBar.textContent = progressPercent + '%';
+                
+                // Allow UI to update
+                if (i % 6 === 0) {
+                    await new Promise(resolve => setTimeout(resolve, 0));
+                }
+            }
+            
+            pdf.save('address_slips.pdf');
+        }
+        
+        function showStatus(message, type) {
+            status.textContent = message;
+            status.className = type;
+        }
+    </script>
+</body>
+</html>
